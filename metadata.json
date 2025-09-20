@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Chevening Course Matchmaker",
+  "description": "Analyzes a user’s CV and recommends Chevening-eligible UK master’s courses.",
+  "requestFramePermissions": []
+}
