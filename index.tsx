@@ -4,7 +4,14 @@
  */
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let ai: GoogleGenAI | null = null;
+try {
+  ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+} catch (error) {
+  console.error("API Key initialization error:", error);
+  // ai will remain null, handled below
+}
+
 
 // --- DOM Elements ---
 const form = document.getElementById('course-finder-form') as HTMLFormElement;
@@ -158,33 +165,6 @@ function setDeadline() {
     countdownInterval = setInterval(updateCountdown, 1000);
     updateCountdown(); // Initial call
 }
-setDeadline();
-
-// --- Modal Logic ---
-pitfallsButton.addEventListener('click', () => {
-    pitfallsModal.classList.remove('hidden');
-});
-closeModalButton.addEventListener('click', () => {
-    pitfallsModal.classList.add('hidden');
-});
-pitfallsModal.addEventListener('click', (e) => {
-    // Close if clicking on the overlay itself
-    if (e.target === pitfallsModal) {
-        pitfallsModal.classList.add('hidden');
-    }
-});
-
-// Add event listener for file input to display the selected file name
-cvFileInput.addEventListener('change', () => {
-    if (cvFileInput.files && cvFileInput.files.length > 0) {
-        const fileName = cvFileInput.files[0].name;
-        fileNameDisplay.textContent = `Selected: ${fileName}`;
-        fileUploadLabel.textContent = 'Change file';
-    } else {
-        fileNameDisplay.textContent = '';
-        fileUploadLabel.textContent = 'Click to select a file';
-    }
-});
 
 // Helper to convert a File object to a GoogleGenerativeAI.Part object.
 async function fileToGenerativePart(file: File) {
@@ -234,68 +214,6 @@ function showError(message: string) {
     errorSection.innerHTML = `<p><strong>An error occurred:</strong> ${message}</p><p>Please try again.</p>`;
     errorSection.classList.remove('hidden');
 }
-
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const cvFile = cvFileInput.files?.[0];
-    if (!cvFile) {
-        showError("Please upload your CV file.");
-        return;
-    }
-    
-    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!allowedTypes.includes(cvFile.type)) {
-        showError("Invalid file type. Please upload a PDF or DOCX file.");
-        return;
-    }
-    
-    showLoading(true);
-
-    const fields = (document.getElementById('fields-input') as HTMLInputElement).value;
-    const locations = (document.getElementById('locations-input') as HTMLInputElement).value;
-    const impact = (document.getElementById('impact-input') as HTMLInputElement).value;
-    const year = (document.getElementById('year-input') as HTMLInputElement).value;
-
-    const userPromptText = `
-      Task: Pick Chevening-eligible UK master’s courses that best match my CV and career plan. The CV is provided in the attached file.
-      
-      Inputs:
-      Target fields: "${fields}"
-      Preferred UK locations: "${locations}"
-      Timeline: must start Sep/Oct ${year}
-      Country-impact one-liner: "${impact}"
-
-      Return JSON output per the required schema. Analyze the CV file to extract the candidate's profile, skills, and experience to inform the course matching.
-    `;
-
-    try {
-        const filePart = await fileToGenerativePart(cvFile);
-        const textPart = { text: userPromptText };
-
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: [filePart, textPart] },
-            config: {
-                systemInstruction: systemInstruction,
-                responseMimeType: "application/json",
-                responseSchema: responseSchema,
-            },
-        });
-
-        const jsonText = response.text.trim();
-        const data = JSON.parse(jsonText);
-        renderResults(data);
-
-    } catch (error)
-     {
-        console.error(error);
-        showError(error instanceof Error ? error.message : "Could not process the file or parse the response from the model.");
-    } finally {
-        showLoading(false);
-        setTimeout(() => resultsSection.scrollIntoView({ behavior: 'smooth' }), 100);
-    }
-});
 
 
 function renderResults(data: any) {
@@ -441,7 +359,7 @@ function renderAlternatives(alternatives: any[]) {
              <p>${alt.why_consider}</p>
              <p><a href="${alt.url}" target="_blank" rel="noopener noreferrer">Visit course page →</a></p>
           </div>
-        `).join('')}
+        }).join('')}
       </div>
     `;
 }
@@ -454,4 +372,126 @@ function renderNotes(notes: string[]) {
             </ul>
         </div>
     `;
+}
+
+// --- App Start ---
+
+// Set deadline countdown regardless of API key status
+setDeadline();
+
+// Modal logic doesn't depend on the API, but its trigger button does.
+// We set up listeners for elements outside the form.
+closeModalButton.addEventListener('click', () => {
+    pitfallsModal.classList.add('hidden');
+});
+pitfallsModal.addEventListener('click', (e) => {
+    // Close if clicking on the overlay itself
+    if (e.target === pitfallsModal) {
+        pitfallsModal.classList.add('hidden');
+    }
+});
+
+
+if (ai) {
+    // --- API is available, set up the form listeners ---
+
+    pitfallsButton.addEventListener('click', () => {
+        pitfallsModal.classList.remove('hidden');
+    });
+
+    // Add event listener for file input to display the selected file name
+    cvFileInput.addEventListener('change', () => {
+        if (cvFileInput.files && cvFileInput.files.length > 0) {
+            const fileName = cvFileInput.files[0].name;
+            fileNameDisplay.textContent = `Selected: ${fileName}`;
+            fileUploadLabel.textContent = 'Change file';
+        } else {
+            fileNameDisplay.textContent = '';
+            fileUploadLabel.textContent = 'Click to select a file';
+        }
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const cvFile = cvFileInput.files?.[0];
+        if (!cvFile) {
+            showError("Please upload your CV file.");
+            return;
+        }
+        
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (!allowedTypes.includes(cvFile.type)) {
+            showError("Invalid file type. Please upload a PDF or DOCX file.");
+            return;
+        }
+        
+        showLoading(true);
+
+        const fields = (document.getElementById('fields-input') as HTMLInputElement).value;
+        const locations = (document.getElementById('locations-input') as HTMLInputElement).value;
+        const impact = (document.getElementById('impact-input') as HTMLInputElement).value;
+        const year = (document.getElementById('year-input') as HTMLInputElement).value;
+
+        const userPromptText = `
+          Task: Pick Chevening-eligible UK master’s courses that best match my CV and career plan. The CV is provided in the attached file.
+          
+          Inputs:
+          Target fields: "${fields}"
+          Preferred UK locations: "${locations}"
+          Timeline: must start Sep/Oct ${year}
+          Country-impact one-liner: "${impact}"
+    
+          Return JSON output per the required schema. Analyze the CV file to extract the candidate's profile, skills, and experience to inform the course matching.
+        `;
+
+        try {
+            const filePart = await fileToGenerativePart(cvFile);
+            const textPart = { text: userPromptText };
+
+            const response = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: { parts: [filePart, textPart] },
+                config: {
+                    systemInstruction: systemInstruction,
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema,
+                },
+            });
+
+            const jsonText = response.text.trim();
+            const data = JSON.parse(jsonText);
+            renderResults(data);
+
+        } catch (error)
+         {
+            console.error(error);
+            showError(error instanceof Error ? error.message : "Could not process the file or parse the response from the model.");
+        } finally {
+            showLoading(false);
+            setTimeout(() => resultsSection.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+    });
+
+} else {
+    // --- API is NOT available. Show an error message. ---
+    
+    inputSection.innerHTML = `
+      <div id="config-error" role="alert">
+        <p><strong>Application Configuration Error</strong></p>
+        <p>This application is not properly configured to connect to the AI service because an API key has not been provided. If you are a user, please contact the person who shared this with you. If you are the developer, please ensure the API key is correctly set up in your environment.</p>
+      </div>
+    `;
+    const style = document.createElement('style');
+    style.textContent = `
+      #config-error {
+        background-color: #FFCDD2;
+        color: #D32F2F;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        text-align: center;
+      }
+      #config-error p { margin-bottom: 0.5rem; }
+    `;
+    document.head.appendChild(style);
 }
