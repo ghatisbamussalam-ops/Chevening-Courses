@@ -17,6 +17,10 @@ const errorSection = document.getElementById('error-section') as HTMLElement;
 const cvFileInput = document.getElementById('cv-file-input') as HTMLInputElement;
 const fileNameDisplay = document.getElementById('file-name-display') as HTMLSpanElement;
 const fileUploadLabel = document.querySelector('.file-upload-label') as HTMLLabelElement;
+const deadlineCountdown = document.getElementById('deadline-countdown') as HTMLSpanElement;
+const pitfallsButton = document.getElementById('pitfalls-button') as HTMLButtonElement;
+const pitfallsModal = document.getElementById('pitfalls-modal') as HTMLElement;
+const closeModalButton = document.getElementById('close-modal-button') as HTMLButtonElement;
 
 
 // --- System Prompt and Schema Definition ---
@@ -30,10 +34,12 @@ Eligibility rules (must pass all): full-time; UK-based; taught master’s (not M
 Pipeline:
 1. Parse CV → strengths & gaps relevant to Chevening criteria (leadership, networking, clear country impact, academic readiness, UK/sector linkage).
 2. Query Postgrad/Chevening index with the user’s target fields and UK locations.
-3. Eligibility filter using the rules above; drop non-conforming items.
+3. Eligibility filter using the rules above; drop non-conforming items. For each recommended course, explicitly return an eligibility check object. If it fails, state why.
 4. Scoring (0–30): Gap fit vs CV (×3), Chevening relevance (×3), UK linkage/credibility (×2), Feasibility (×2), Portfolio/outcomes (×1), Networking exposure (×1).
-5. Return a ranked Top-9 with Chevening-specific rationales + 3 close alternates, a 3-course strategy (the trio you’d actually list on the form), and brief talking points for each essay section.
-6. Truthfulness: If fees/start cycles are unclear in the index, mark them “Verify on university site.” No guesses.
+5. For each course, provide a short, expandable note explaining the rank, referencing the scoring criteria (e.g., "Ranked #1 due to strong alignment with your CV's leadership experience (gap-fit) and direct relevance to your country-impact goal (Chevening relevance).").
+6. Return a ranked Top-9 with Chevening-specific rationales + 3 close alternates, a 3-course strategy (the trio you’d actually list on the form), and brief talking points for each essay section.
+7. Truthfulness: If fees/start cycles are unclear in the index, mark them “Verify on university site.” No guesses.
+8. MBA Alert: If a programme is an MBA, include a note in the Chevening rationale about the £22,000 fee cap.
 
 Tone: crisp, factual, zero fluff. No marketing language.
 `;
@@ -43,9 +49,10 @@ const responseSchema = {
   properties: {
     profile: {
       type: Type.OBJECT,
+      description: "Analysis of the user's CV against Chevening criteria.",
       properties: {
-        strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-        gaps: { type: Type.ARRAY, items: { type: Type.STRING } },
+        strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Key strengths from the CV." },
+        gaps: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Areas for development or focus." },
       }
     },
     ranked_courses: {
@@ -61,7 +68,19 @@ const responseSchema = {
           start_cycle: { type: Type.STRING },
           duration_months: { type: Type.INTEGER },
           fee_gbp: { type: Type.STRING },
-          chevening_rationale: { type: Type.ARRAY, items: { type: Type.STRING } }
+          chevening_rationale: { type: Type.ARRAY, items: { type: Type.STRING } },
+          eligibility_check: {
+            type: Type.OBJECT,
+            description: "A check against key Chevening eligibility criteria.",
+            properties: {
+              is_eligible: { type: Type.BOOLEAN },
+              reason: { type: Type.STRING, description: "Reason for eligibility status, e.g., 'Passes all checks' or 'Ineligible: duration is over 12 months'."}
+            }
+          },
+          score_breakdown: {
+            type: Type.STRING,
+            description: "A short explanation of why the course received its rank, based on scoring criteria."
+          }
         }
       }
     },
@@ -109,9 +128,51 @@ const loadingMessages = [
     "Compiling your personalized strategy...",
     "This may take a moment. Great recommendations are on their way!"
 ];
-// FIX: Changed type from `number` to `ReturnType<typeof setInterval>` to be compatible with both browser (number) and Node.js (Timeout) environments.
 let messageInterval: ReturnType<typeof setInterval>;
+let countdownInterval: ReturnType<typeof setInterval>;
 
+// --- Deadline Countdown ---
+function setDeadline() {
+    // Deadline: 7 October 2025 at 12:00 UTC
+    const deadline = new Date('2025-10-07T12:00:00Z');
+
+    function updateCountdown() {
+        const now = new Date();
+        const diff = deadline.getTime() - now.getTime();
+
+        if (diff <= 0) {
+            deadlineCountdown.textContent = "The deadline has passed.";
+            if(countdownInterval) clearInterval(countdownInterval);
+            return;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        deadlineCountdown.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+    
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(updateCountdown, 1000);
+    updateCountdown(); // Initial call
+}
+setDeadline();
+
+// --- Modal Logic ---
+pitfallsButton.addEventListener('click', () => {
+    pitfallsModal.classList.remove('hidden');
+});
+closeModalButton.addEventListener('click', () => {
+    pitfallsModal.classList.add('hidden');
+});
+pitfallsModal.addEventListener('click', (e) => {
+    // Close if clicking on the overlay itself
+    if (e.target === pitfallsModal) {
+        pitfallsModal.classList.add('hidden');
+    }
+});
 
 // Add event listener for file input to display the selected file name
 cvFileInput.addEventListener('change', () => {
@@ -183,7 +244,6 @@ form.addEventListener('submit', async (e) => {
         return;
     }
     
-    // Validate file type
     const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     if (!allowedTypes.includes(cvFile.type)) {
         showError("Invalid file type. Please upload a PDF or DOCX file.");
@@ -233,7 +293,6 @@ form.addEventListener('submit', async (e) => {
         showError(error instanceof Error ? error.message : "Could not process the file or parse the response from the model.");
     } finally {
         showLoading(false);
-        // Scroll to results after a short delay to allow rendering
         setTimeout(() => resultsSection.scrollIntoView({ behavior: 'smooth' }), 100);
     }
 });
@@ -242,6 +301,9 @@ form.addEventListener('submit', async (e) => {
 function renderResults(data: any) {
     resultsSection.innerHTML = ''; // Clear previous results
 
+    if (data.profile) {
+        resultsSection.innerHTML += renderProfileAnalysis(data.profile);
+    }
     if (data.chevening_trio) {
         resultsSection.innerHTML += renderTrio(data.chevening_trio);
     }
@@ -259,17 +321,46 @@ function renderResults(data: any) {
     }
 }
 
+function renderProfileAnalysis(profile: any) {
+    if (!profile.strengths || !profile.gaps) return '';
+    return `
+      <div id="profile-analysis-section" class="result-category">
+        <h2>CV Analysis vs. Chevening Criteria</h2>
+        <div class="profile-columns">
+            <div class="profile-column">
+                <h3>Strengths</h3>
+                <ul>${profile.strengths.map((s: string) => `<li>${s}</li>`).join('')}</ul>
+            </div>
+            <div class="profile-column">
+                <h3>Potential Gaps</h3>
+                <ul>${profile.gaps.map((g: string) => `<li>${g}</li>`).join('')}</ul>
+            </div>
+        </div>
+      </div>
+    `;
+}
+
 function renderTrio(trio: any[]) {
+    const universities = new Set(trio.map(course => course.university));
+    const singleUniversityWarning = universities.size === 1 && trio.length > 1 ?
+        `<p class="trio-warning"><strong>Note:</strong> All three choices are from the same university. This is permitted, but Chevening often recommends diversifying your choices to spread risk.</p>` : '';
+
     return `
       <div class="result-category">
         <h2>Your Recommended Chevening Trio</h2>
-        ${trio.map(course => `
-          <div class="trio-card">
-            <h3>${course.programme}</h3>
-            <p class="university">${course.university}</p>
-            <p>${course.why_this_trio}</p>
-          </div>
-        `).join('')}
+        ${singleUniversityWarning}
+        ${trio.map(course => {
+          const isMBA = course.programme.toLowerCase().includes('mba');
+          const mbaWarning = isMBA ? `<p class="mba-warning"><strong>MBA Fee Cap:</strong> Chevening caps MBA tuition at £22,000. You must fund any difference.</p>` : '';
+          return `
+            <div class="trio-card">
+              <h3>${course.programme}</h3>
+              <p class="university">${course.university}</p>
+              <p>${course.why_this_trio}</p>
+              ${mbaWarning}
+            </div>
+          `
+        }).join('')}
       </div>
     `;
 }
@@ -278,25 +369,49 @@ function renderRankedCourses(courses: any[]) {
     return `
       <div class="result-category">
         <h2>Top Ranked Courses</h2>
-        ${courses.map(course => `
-          <div class="course-card">
-            <h3>${course.rank}. ${course.programme}</h3>
-            <p class="university">${course.university}</p>
-            <div class="details">
-              <span>📍 ${course.city}</span>
-              <span>🗓️ ${course.start_cycle}</span>
-              <span>⏳ ${course.duration_months} months</span>
-              <span>💷 ${course.fee_gbp}</span>
+        ${courses.map(course => {
+          const { eligibility_check, score_breakdown, programme, fee_gbp } = course;
+          
+          const eligibilityBadge = eligibility_check ? 
+              (eligibility_check.is_eligible ? 
+                  `<span class="eligibility-badge">Chevening-eligible ✅</span>` : 
+                  `<span class="eligibility-badge ineligible">Ineligible ❌</span>`
+              ) : '';
+          const eligibilityReason = eligibility_check && !eligibility_check.is_eligible ? `<p class="ineligible-reason">${eligibility_check.reason}</p>` : '';
+          const isMBA = programme.toLowerCase().includes('mba');
+          const mbaWarning = isMBA ? `<p class="mba-warning"><strong>MBA Fee Cap:</strong> Chevening caps MBA tuition at £22,000. You must fund any difference.</p>` : '';
+      
+          const feeDisplay = fee_gbp && fee_gbp.toLowerCase().includes('verify') ? `<span class="verify-chip">${fee_gbp}</span>` : `💷 ${fee_gbp || 'N/A'}`;
+
+          return `
+            <div class="course-card">
+              <h3>${course.rank}. ${course.programme}</h3>
+              <p class="university">${course.university}</p>
+              ${eligibilityBadge}
+              ${eligibilityReason}
+              ${mbaWarning}
+              <div class="details">
+                <span>📍 ${course.city}</span>
+                <span>🗓️ ${course.start_cycle}</span>
+                <span>⏳ ${course.duration_months} months</span>
+                <span>${feeDisplay}</span>
+              </div>
+              ${score_breakdown ? `
+              <details class="score-breakdown">
+                  <summary>Why this rank?</summary>
+                  <p>${score_breakdown}</p>
+              </details>
+              ` : ''}
+              <div class="chevening-rationale">
+                <strong>Chevening Rationale:</strong>
+                <ul>
+                  ${course.chevening_rationale.map((r: string) => `<li>${r}</li>`).join('')}
+                </ul>
+              </div>
+              <p><a href="${course.url}" target="_blank" rel="noopener noreferrer">Visit course page →</a></p>
             </div>
-            <div class="chevening-rationale">
-              <strong>Chevening Rationale:</strong>
-              <ul>
-                ${course.chevening_rationale.map((r: string) => `<li>${r}</li>`).join('')}
-              </ul>
-            </div>
-            <p><a href="${course.url}" target="_blank" rel="noopener noreferrer">Visit course page →</a></p>
-          </div>
-        `).join('')}
+          `
+        }).join('')}
       </div>
     `;
 }

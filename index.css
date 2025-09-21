@@ -8,6 +8,8 @@
   --card-background: #ffffff;
   --border-color: #e0e0e0; /* Material Grey 300 */
   --danger-color: #D32F2F; /* Material Red 700 */
+  --success-color: #388E3C; /* Material Green 700 */
+  --warning-color: #FBC02D; /* Material Yellow 700 */
   --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --box-shadow-1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
   --box-shadow-2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
@@ -29,6 +31,20 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+#deadline-bar {
+  background-color: var(--primary-color-dark);
+  color: white;
+  text-align: center;
+  padding: 0.5rem;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+#deadline-bar a {
+  color: var(--accent-color);
+  text-decoration: underline;
+  margin-left: 0.5rem;
 }
 
 header {
@@ -140,6 +156,13 @@ section {
   margin-top: 0.5rem;
 }
 
+.privacy-microcopy {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
 #file-name-display {
   margin-top: 0.75rem;
   font-style: italic;
@@ -148,12 +171,16 @@ section {
   font-weight: 500;
 }
 
-button#submit-button {
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+button#submit-button, .button-secondary {
   padding: 0.8rem 2rem;
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text-color-primary);
-  background-color: var(--accent-color);
   border: none;
   border-radius: var(--border-radius);
   cursor: pointer;
@@ -161,13 +188,30 @@ button#submit-button {
   letter-spacing: 1px;
   box-shadow: var(--box-shadow-1);
   transition: background-color 0.3s, box-shadow 0.3s, transform 0.2s;
-  justify-self: start;
+}
+
+button#submit-button {
+  color: var(--text-color-primary);
+  background-color: var(--accent-color);
+}
+
+.button-secondary {
+  background-color: transparent;
+  color: var(--primary-color);
+  border: 2px solid var(--border-color);
+  font-size: 1rem;
+  padding: 0.7rem 1.5rem;
 }
 
 button#submit-button:hover:not(:disabled) {
   background-color: #FFCA28; /* Amber 400 */
   box-shadow: var(--box-shadow-2);
   transform: translateY(-2px);
+}
+
+.button-secondary:hover {
+  background-color: #f0f0f0;
+  border-color: var(--primary-color);
 }
 
 button#submit-button:disabled {
@@ -236,6 +280,7 @@ button#submit-button:disabled {
     background: #fff;
     box-shadow: var(--box-shadow-1);
     transition: box-shadow 0.3s ease-in-out;
+    position: relative;
 }
 .course-card:hover, .trio-card:hover {
     box-shadow: var(--box-shadow-2);
@@ -267,9 +312,13 @@ button#submit-button:disabled {
 .course-card .details span {
     display: inline-flex;
     align-items: center;
-    background: #f5f5f5;
+}
+.details .verify-chip {
+    background: #FFF9C4; /* Yellow 100 */
+    color: #FBC02D; /* Yellow 700 */
     padding: 0.3rem 0.8rem;
     border-radius: 16px;
+    font-weight: 500;
 }
 
 .course-card a {
@@ -289,7 +338,7 @@ button#submit-button:disabled {
     margin-top: 1.5rem;
 }
 
-.chevening-rationale ul, .personal-statement-bullets ul {
+.chevening-rationale ul, .personal-statement-bullets ul, #profile-analysis-section ul {
     list-style-type: none;
     padding-left: 0;
     margin-top: 0.5rem;
@@ -299,18 +348,114 @@ button#submit-button:disabled {
   color: var(--primary-color-dark);
 }
 
-.chevening-rationale li, .personal-statement-bullets li {
+.chevening-rationale li, .personal-statement-bullets li, #profile-analysis-section li {
     margin-bottom: 0.75rem;
     padding-left: 1.5rem;
     position: relative;
 }
 
-.chevening-rationale li::before, .personal-statement-bullets li::before {
+.chevening-rationale li::before, .personal-statement-bullets li::before, #profile-analysis-section li::before {
     content: '✓';
     color: var(--accent-color);
     position: absolute;
     left: 0;
     font-weight: bold;
+}
+#profile-analysis-section .profile-column:last-child li::before {
+  content: '○';
+}
+
+/* New Feature Styles */
+.eligibility-badge {
+  font-weight: 700;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--border-radius);
+  color: white;
+  background-color: var(--success-color);
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+.eligibility-badge.ineligible {
+  background-color: var(--danger-color);
+}
+.ineligible-reason {
+  color: var(--danger-color);
+  font-weight: 500;
+  margin: 0.5rem 0;
+}
+.mba-warning, .trio-warning {
+  background-color: #FFF3E0; /* Orange 50 */
+  border-left: 4px solid #FB8C00; /* Orange 700 */
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border-radius: var(--border-radius);
+}
+
+.score-breakdown {
+  margin-top: 1rem;
+}
+.score-breakdown summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--primary-color);
+}
+.score-breakdown p {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border-radius: var(--border-radius);
+}
+
+#profile-analysis-section .profile-columns {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+#profile-analysis-section .profile-column {
+  flex: 1;
+  min-width: 280px;
+}
+#profile-analysis-section h3 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: white;
+  padding: 2.5rem;
+  border-radius: var(--border-radius);
+  max-width: 600px;
+  width: 90%;
+  position: relative;
+  box-shadow: var(--box-shadow-3);
+}
+.modal-content h2 { margin-bottom: 1.5rem; }
+.modal-content ul { list-style-position: inside; }
+.modal-content li { margin-bottom: 1rem; }
+
+.close-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: var(--text-color-secondary);
 }
 
 
@@ -348,5 +493,9 @@ footer {
     }
     section {
         padding: 1.5rem;
+    }
+    .form-actions {
+      flex-direction: column;
+      align-items: stretch;
     }
 }

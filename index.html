@@ -17,6 +17,12 @@
   </script>
 </head>
 <body>
+  <div id="deadline-bar">
+    <p>
+      Time until Chevening application deadline: <span id="deadline-countdown">Loading...</span> 
+      <a href="https://www.chevening.org/scholarships/application-timeline/" target="_blank" rel="noopener noreferrer">(Verify Official Date)</a>
+    </p>
+  </div>
 
   <header>
     <h1>Chevening Course Matchmaker</h1>
@@ -33,6 +39,7 @@
           </label>
           <input type="file" id="cv-file-input" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
           <p id="file-instructions" class="file-instructions-text">Supported formats: PDF, DOCX</p>
+          <p class="privacy-microcopy">Your file is processed transiently and is never stored.</p>
           <span id="file-name-display"></span>
         </div>
         <div class="form-group">
@@ -51,7 +58,10 @@
             <label for="year-input">Target Start Year</label>
             <input type="number" id="year-input" value="2025" min="2024" required aria-label="Target Start Year">
         </div>
-        <button type="submit" id="submit-button">Find My Courses</button>
+        <div class="form-actions">
+          <button type="submit" id="submit-button">Find My Courses</button>
+          <button type="button" id="pitfalls-button" class="button-secondary">View Common Pitfalls</button>
+        </div>
       </form>
     </section>
 
@@ -68,6 +78,21 @@
   <footer>
     <p>All rights reserved by Ghaith Bamussalam</p>
   </footer>
+
+  <div id="pitfalls-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <button id="close-modal-button" class="close-button" aria-label="Close modal">&times;</button>
+      <h2>Common Chevening Application Pitfalls</h2>
+      <ul>
+        <li><strong>Course Duration:</strong> Courses must be 9-12 months long. Anything longer is ineligible.</li>
+        <li><strong>Course Type:</strong> Only full-time, taught Master's degrees are eligible. MRes, PhDs, and part-time courses are not.</li>
+        <li><strong>Location:</strong> The course must be based in the UK. Distance learning courses are not eligible, even if offered by a UK university.</li>
+        <li><strong>London Branch Campuses:</strong> Be cautious with London branch campuses of universities based elsewhere. Ensure they are fully integrated and eligible.</li>
+        <li><strong>Pre-sessional Courses:</strong> Costs for pre-sessional English courses are not covered.</li>
+        <li><strong>Offer Deadline:</strong> You must have at least one unconditional offer uploaded to the Chevening portal by the official deadline.</li>
+      </ul>
+    </div>
+  </div>
 
   <script type="module" src="index.tsx"></script>
 </body>
